@@ -4,9 +4,9 @@
 
 ### Matthew Morecroft, Ariel Greiner, Lena Faber, Katrina J Davis
 
-# date
+### date
 
-# Matthew made this repo
+### Matthew made this repo
 
 hello this repo is for our paper [link]. data is in data subrepo, analysis code is in subrepo. see below for explaination
 
