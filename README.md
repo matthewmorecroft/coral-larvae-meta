@@ -1,5 +1,3 @@
-# coral-larvae-meta
-
 # Analysis for Life-history traits explain variation in the larval dispersal potential of corals
 
 ### Matthew Morecroft, Ariel Greiner, Lena Faber, Katrina J Davis
