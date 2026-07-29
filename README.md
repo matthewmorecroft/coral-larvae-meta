@@ -8,7 +8,7 @@
 
 hello this repo is for our paper [link]. data is in data subrepo, analysis code is in subrepo. see below for explaination
 
-### Data
+## Data
 
 we have data
 1
@@ -16,7 +16,7 @@ we have data
 3 etc
 
 
-### Analysis
+## Analysis
 
 heres the code files
 1
