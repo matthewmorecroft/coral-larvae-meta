@@ -2,24 +2,21 @@
 
 ### Matthew Morecroft, Ariel Greiner, Lena Faber, Katrina J Davis
 
-### date
+### 31/07/2026
 
-### Matthew made this repo
-
-hello this repo is for our paper [link]. data is in data subrepo, analysis code is in subrepo. see below for explaination
+### Repository created by Matthew Morecroft
+This repository contains the data and code for our paper "Life-history traits explain variation in the larval dispersal potential of corals" [link when available]. The code and data enables the reproduction of the analysis and figures in this paper. The data files needed for the analysis are located in the "data" subrepo, and the code to conduct the analysis code is located in the "code" subrepo. see below for explanation of each file
 
 ## Data
 
-we have data
-1
-3
-3 etc
+1 Search result data with inclusion/exclusion details
+3 Review data, with extracted methodology, species, biogeographic realm, and model parameter justification data
+3 Meta-analysis data, with extracted effect sizes and additional trait data
 
 
 ## Analysis
 
-heres the code files
-1
-2
-3
+1 R notebook for systematic review summary statistics and figures (fig 1, fig 2)
+2 R notebook for meta-analysis models and figures (fig 4)
+3 R notebook for fig 3
 
