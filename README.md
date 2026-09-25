@@ -16,10 +16,7 @@ This repository contains the data and code for our paper "Life-history traits ex
 
 3 Meta-analysis data, with extracted effect sizes and additional trait data
 
-4 Conservation status data for the Anthozoa, obtained from the IUCN Red List.
-
-5 Taxonomic information for Anthozoan species evaluated by the IUCN Red List.
-
+Producing figures 1b and 1c also requires conservation status and taxonomic data for the Anthozoa, which can be obtained from the IUCN Red List.
 (IUCN. 2026. The IUCN Red List of Threatened Species. Version 2026-1. https://www.iucnredlist.org. Accessed on 10/03/2025)
 
 
