@@ -1,0 +1,136 @@
+
+# Life-history traits explain variation in the larval dispersal potential of corals
+
+
+## Figure 2
+
+
+Code to produce figure 2 from our paper
+
+
+
+### Packages
+
+Code to load (and install if necessary) the packages needed. (Remove "#"s to install packages.)
+```{r, message=FALSE}
+#  install.packages("tidyverse")
+library(tidyverse)
+
+# install.packages("sf")
+library(sf)
+
+# install.packages("rnaturalearth")
+library(rnaturalearth)
+
+
+# "marineregions" package needed for Biogeographic realm data, must be manually installed from github with "devtools" using the following #'d out code below (can be quite slow!)
+
+## install.packages("devtools")
+## library(devtools)
+
+# devtools::install_github("cfree14/marineregions", force=T)
+library(marineregions)
+
+
+```
+
+
+
+### Data
+
+
+Read in the systematic review data (for numbers of study in each biogeographic realm), and the meta-analysis data (for locations of study sites of studies with effect sizes).
+```{r, message=FALSE}
+#Review data
+map_review_raw <- read_csv("data/review-data.csv")
+
+#Meta-analysis data
+map_models_raw <- read_csv("data/coral-modelling-data.csv")
+```
+
+
+```{r}
+world <- ne_countries()
+coast <- ne_coastline()
+```
+
+
+
+### Data wrangling
+
+
+Make dataframe for study site lat/lon data
+```{r}
+study_sites <- map_models_raw %>% 
+  subset(select = c("acc_id", "obs_id", "latmin", "latmax", "lonmin", "lonmax")) %>% 
+  mutate(med_lat = (latmin + latmax)/2) %>% 
+  mutate(med_lon = (lonmin + lonmax)/2) %>% 
+  drop_na(med_lon) %>% 
+  drop_na(med_lat)  %>% 
+  mutate(med_lon = case_when(
+    acc_id == "A_0469" ~ -80.73583,
+    .default = med_lon
+  )) 
+
+sites_new <- st_as_sf(study_sites, coords = c("med_lon", "med_lat"), crs = 4326, agr = "constant")
+```
+
+
+
+Label the realms for the legend so the number of studies are displayed
+```{r}
+meows$realm <- factor(meows$realm,
+                                levels = c("Central Indo-Pacific", "Tropical Atlantic", "Temperate Northern Atlantic", "Western Indo-Pacific", "Eastern Indo-Pacific", "Temperate Northern Pacific", "Temperate Australasia", "Tropical Eastern Pacific", "Temperate South America", "Southern Ocean", "Temperate Southern Africa", "Arctic", "Tropical", "Temperate", "Polar"),
+                                labels = c("Central Indo-Pacific: n = 265", "Tropical Atlantic: n = 156", "Temperate Northern Atlantic: n = 99", "Western Indo-Pacific: n = 57", "Eastern Indo-Pacific: n = 53", "Temperate Northern Pacific: n = 44", "Temperate Australasia: n = 28", "Tropical Eastern Pacific: n = 23", "Temperate South America: n = 16", "Southern Ocean: n = 5", "Temperate Southern Africa: n = 4", "Arctic: n = 3", "Tropical: n = 518", "Temperate: n = 179", "Polar: n = 8"))
+```
+
+
+
+Add the number of studies in each realm in a separate column, so that the colour gradient of the map can be assigned based on number of studies
+```{r}
+meows <- meows %>% 
+  mutate(study_freq = case_when(
+    realm == "Central Indo-Pacific: n = 265" ~ "265", 
+    realm == "Tropical Atlantic: n = 156" ~ "156", 
+    realm == "Temperate Northern Atlantic: n = 99" ~ "99", 
+    realm == "Western Indo-Pacific: n = 57" ~ "57", 
+    realm == "Eastern Indo-Pacific: n = 53" ~ "53", 
+    realm == "Temperate Northern Pacific: n = 44" ~ "44", 
+    realm == "Temperate Australasia: n = 28" ~ "28", 
+    realm == "Tropical Eastern Pacific: n = 23" ~ "23", 
+    realm == "Temperate South America: n = 16" ~ "16", 
+    realm == "Southern Ocean: n = 5" ~ "5", 
+    realm == "Temperate Southern Africa: n = 4" ~ "4", 
+    realm == "Arctic: n = 3" ~ "3", 
+    realm == "Tropical: n = 518" ~ "518", 
+    realm == "Temperate: n = 179" ~ "179", 
+    realm == "Polar: n = 8" ~ "8"
+  )) %>% 
+  mutate_at(c("study_freq"), as.numeric)
+```
+
+
+
+# Figure production
+
+
+Produce a map showing the distribution of study sites included in the meta-analysis, with a colour gradient showing how many studies of coral larval dispersal have taken place in each biogeographic realm
+```{r}
+# Create map
+fig2_map <- ggplot(data = meows, aes(fill = study_freq)) +
+  geom_sf() +
+  scale_fill_viridis_c(option = "G", name = "Number of studies \nin each marine \nbiogeographic realm", direction = -1) +
+  geom_sf(data = world, fill = "grey96") +
+  geom_sf(data = sites_new, fill = "darkorange", colour = "darkorange", alpha = 0.5, shape = 17, size = 4) +
+  theme(panel.grid = element_blank(),
+        panel.background = element_rect(fill = "azure")) +
+  coord_sf(xlim = c(-164, 164), ylim = c(-82, 82))
+
+#View map
+fig2_map 
+
+#Save map
+ggsave("figures/fig2_map.png", width =  12, height = 8)
+```
+
+
