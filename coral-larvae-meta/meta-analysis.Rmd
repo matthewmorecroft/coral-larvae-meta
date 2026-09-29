@@ -1,0 +1,552 @@
+
+# Life-history traits explain variation in the larval dispersal potential of corals - systematic review figure code
+
+
+## Meta-analysis models and figures
+
+
+Code to re-produce our meta-analysis and to produce figure 4
+
+
+
+### Packages
+
+Code to load (and install if necessary) the packages needed. (Remove "#"s to install packages.)
+```{r, message=FALSE}
+#  install.packages("tidyverse")
+library(tidyverse)
+
+# install.packages("metafor")
+library(metafor)
+
+# install.packages("rotl")
+library(rotl)
+
+# install.packages("ape")
+library(ape)
+```
+
+
+
+### Data
+
+
+Read in the effect size data
+```{r, message=FALSE}
+#Review data
+model_data_raw <- read_csv("data/coral-modelling-data.csv")
+```
+
+
+Separate the mean settlement and survival times effect sizes into separate dataframes
+```{r}
+coral_settle <- model_data_raw %>% 
+  drop_na(pld_av_comp_effectsize_d)
+
+coral_survival <- model_data_raw %>% 
+  drop_na(pld_av_mort_effectsize_d)
+```
+
+
+
+### Data wrangling - computing phylogeny
+
+
+Make a phylogenetic correlation matrix for the species with competency data (can be slow!)
+```{r}
+#Create list of species for meta-analysis
+settle_splist <- coral_settle %>% 
+  distinct(species_accepted, .keep_all = FALSE)
+#Make list a vector
+settle_splist <- settle_splist$species_accepted
+
+#Get ottd ids for species (this can take a minute)
+ott_ids_settle <- tnrs_match_names(settle_splist) #%>% 
+  #drop_na(ott_id)
+
+print(ott_ids_settle)
+#They all match, yay
+
+#Make tree
+settle_tree <- tol_induced_subtree(ott_ids_settle$ott_id)
+plot(settle_tree)
+
+#Make tree ultrametric
+settle_tree <- compute.brlen(settle_tree)
+
+#Make a phylogenetic correlation matrix from the tree
+settle_PCM <- vcv(settle_tree, corr = TRUE)
+
+```
+
+Save a plot of the tree
+```{r}
+plot(settle_tree)
+png(filename = "figures/settlement_tree.png",
+    width = 900, height = 1500)
+plot(settle_tree)
+dev.off()
+```
+
+
+Match the ottd IDs to the settlement data
+```{r}
+#Add the species OTTD IDs to link to the phylogenetic correlation matrix
+settle_link <- subset(ott_ids_settle, select = c("search_string", "unique_name", "ott_id"))
+phy_settle <- coral_settle %>% 
+  mutate(low_species = tolower(species_accepted)) %>% 
+  mutate(low_genus = tolower(genus_accepted))
+phy_settle <- left_join(x = phy_settle, y = settle_link, by = join_by(low_species == search_string))
+
+#change the unique name for A. millepora to put underscores in the bracketed bit
+phy_settle <- phy_settle %>% 
+  mutate(unique_name = case_when(
+    grepl("millepora", unique_name) ~ "Acropora_millepora_(species_in_domain_Eukaryota)",
+    .default = unique_name
+  ))
+
+phy_settle <- phy_settle %>% 
+  mutate(species.phy = sub(" ", "_", (paste(unique_name, paste("ott", phy_settle$ott_id, sep = ""), sep = "_"))))
+
+```
+
+
+
+Now do the same for the survival data
+```{r}
+#Create list of species for meta-analysis
+surv_splist <- coral_survival %>% 
+  distinct(species_accepted, .keep_all = FALSE)
+#Make list a vector
+surv_splist <- surv_splist$species_accepted
+
+#Get ottd ids for species (this can take a minute)
+ott_ids_surv <- tnrs_match_names(surv_splist) #%>% 
+  #drop_na(ott_id)
+
+print(ott_ids_surv)
+#They all match, yay
+
+#Make tree
+surv_tree <- tol_induced_subtree(ott_ids_surv$ott_id)
+plot(surv_tree)
+
+#Make tree ultrametric
+surv_tree <- compute.brlen(surv_tree)
+
+#Make a phylogenetic correlation matrix from the tree
+surv_PCM <- vcv(surv_tree, corr = TRUE)
+
+```
+
+
+Save a plot of the tree
+```{r}
+plot(surv_tree)
+png(filename = "figures/survival_tree.png",
+    width = 900, height = 900)
+plot(surv_tree)
+dev.off()
+```
+
+
+Match the ottd IDs to the survival data
+```{r}
+#Add the species OTTD IDs to link to the phylogenetic correlation matrix
+surv_link <- subset(ott_ids_surv, select = c("search_string", "unique_name", "ott_id"))
+phy_surv <- coral_survival %>% 
+  mutate(low_species = tolower(species_accepted)) %>% 
+  mutate(low_genus = tolower(genus_accepted))
+phy_surv <- left_join(x = phy_surv, y = surv_link, by = join_by(low_species == search_string))
+
+#change the unique name for A. millepora to put underscores in the bracketed bit
+phy_surv <- phy_surv %>% 
+  mutate(unique_name = case_when(
+    grepl("millepora", unique_name) ~ "Acropora_millepora_(species_in_domain_Eukaryota)",
+    .default = unique_name
+  ))
+
+phy_surv <- phy_surv %>% 
+  mutate(species.phy = sub(" ", "_", (paste(unique_name, paste("ott", phy_surv$ott_id, sep = ""), sep = "_"))))
+
+```
+
+
+
+Make reproductive mode and morphology factors so the models work properly
+```{r}
+#Reproductive mode
+phy_settle$spawn_mode <- as.factor(phy_settle$spawn_mode)
+phy_surv$spawn_mode <- as.factor(phy_surv$spawn_mode)
+
+#Morphology
+phy_settle$growth_form_cat <- as.factor(phy_settle$growth_form_cat)
+phy_surv$growth_form_cat <- as.factor(phy_surv$growth_form_cat)
+```
+
+
+Create dataframes with geographic variables for models of geographic realm and latitude, for both settlement and survival time effect sizes
+```{r}
+# Settlement
+geog_settle <- phy_settle %>% 
+  mutate(zone = case_when(
+    grepl("Temperate", biogeog_realm) ~ "temperate",
+    grepl("Tropical", biogeog_realm) ~ "tropical",
+    grepl("Indo-Pacific", biogeog_realm) ~ "tropical",
+    grepl("Arctic", biogeog_realm) ~ "polar",
+    grepl("Southern Ocean", biogeog_realm) ~ "polar")) %>% # assign realms to tropical/temperate
+  mutate(med_lat = (abs(latmin) + abs(latmax))/2) %>% # determine latitude of the study area's midpoint
+  filter(biogeog_realm != "aquarium_culture") # remove effect sizes for observations with unknown locations
+
+# Survival
+geog_surv <- phy_surv %>% 
+  mutate(zone = case_when(
+    grepl("Temperate", biogeog_realm) ~ "temperate",
+    grepl("Tropical", biogeog_realm) ~ "tropical",
+    grepl("Indo-Pacific", biogeog_realm) ~ "tropical",
+    grepl("Arctic", biogeog_realm) ~ "polar",
+    grepl("Southern Ocean", biogeog_realm) ~ "polar",
+  )) %>% 
+  mutate(med_lat = (abs(latmin) + abs(latmax))/2) %>% 
+  filter(biogeog_realm != "aquarium_culture")
+```
+
+
+
+
+### Random-effects meta-analysis models: Settlement time
+
+
+Run random-effects meta-analysis models of mean larval settlement time.
+
+
+Random-effects model - observation nested in study
+```{r}
+# Construct model
+random_study_mod_SETTLE <- rma.mv(yi = pld_av_comp_effectsize_d, V = ((pld_av_comp_effect_sd)^2), data = phy_settle, random = list(~ 1|acc_id/obs_id)) # use mean settlement time as effect size, weight by variance in the mean, use observation as a random effect nested within study
+
+# Summarise results
+summary(random_study_mod_SETTLE)
+```
+
+
+Random-effects model - observation nested in study with phylogenetic control
+```{r}
+# Model
+random_phylo_mod_SETTLE <- rma.mv(yi = pld_av_comp_effectsize_d, V = ((pld_av_comp_effect_sd)^2), data = phy_settle, random = list(~ 1|acc_id/obs_id, ~1|species.phy), R = list(species.phy = settle_PCM)) # add species as a random effect, and link it to the relevant phylogenetic correlation matrix
+
+# Results
+summary(random_phylo_mod_SETTLE)
+```
+
+
+AIC comparison shows that controlling for phylogeny provides better fit
+
+
+
+### Mixed-effects meta-regressions: Settlement time
+
+
+Combined reproductive mode and morphology model
+```{r}
+repro_morpho_mod_SETTLE <- rma.mv(yi = pld_av_comp_effectsize_d, V = ((pld_av_comp_effect_sd)^2), data = phy_settle, mods = ~ spawn_mode*growth_form_cat, random = list(~ 1|acc_id/obs_id, ~1|species.phy), R = list(species.phy = settle_PCM))
+
+summary(repro_morpho_mod_SETTLE)
+```
+
+
+
+Model for biogeographic realm
+```{r}
+realm_mod_SETTLE <- rma.mv(yi = pld_av_comp_effectsize_d, V = ((pld_av_comp_effect_sd)^2), data = geog_settle, mods = ~biogeog_realm, random = list(~1|acc_id/obs_id, ~1|species.phy), R = list(species.phy = settle_PCM))
+
+summary(realm_mod_SETTLE)
+```
+
+
+Model for tropical/temperate region
+```{r}
+geog_mod_SETTLE <- rma.mv(yi = pld_av_comp_effectsize_d, V = ((pld_av_comp_effect_sd)^2), data = geog_settle, mods = ~zone, random = list(~1|acc_id/obs_id, ~1|species.phy), R = list(species.phy = settle_PCM))
+summary(geog_mod_SETTLE)
+```
+
+
+Model for latitude
+```{r}
+lat_mod_SETTLE <- rma.mv(yi = pld_av_comp_effectsize_d, V = ((pld_av_comp_effect_sd)^2), data = geog_settle, mods = ~med_lat, random = list(~1|acc_id/obs_id, ~1|species.phy), R = list(species.phy = settle_PCM))
+summary(lat_mod_SETTLE)
+
+```
+
+
+
+### Random-effects meta-analysis models: Survival time
+
+
+Run random-effects meta-analysis models of mean larval settlement time.
+
+
+Random-effects model - observation nested in study
+```{r}
+random_study_mod_SURV <- rma.mv(yi = pld_av_mort_effectsize_d, V = ((pld_av_mort_effect_sd)^2), data = phy_surv, random = list(~ 1|acc_id/obs_id))
+
+summary(random_study_mod_SURV)
+```
+
+
+Random-effects model - observation nested in study with phylogenetic control
+```{r}
+random_phylo_mod_SURV <- rma.mv(yi = pld_av_mort_effectsize_d, V = ((pld_av_mort_effect_sd)^2), data = phy_surv, random = list(~ 1|acc_id/obs_id, ~1|species.phy), R = list(species.phy = surv_PCM))
+
+summary(random_phylo_mod_SURV)
+```
+
+
+AIC comparison shows that controlling for phylogeny does not provide better fit
+
+
+
+### Mixed-effects meta-regressions: Survival time
+
+
+Combined reproductive mode and morphology model
+```{r}
+repro_morpho_mod_SURV <- rma.mv(yi = pld_av_mort_effectsize_d, V = ((pld_av_mort_effect_sd)^2), data = phy_surv, mods = ~ spawn_mode*growth_form_cat, random = list(~ 1|acc_id/obs_id))
+
+summary(repro_morpho_mod_SURV)
+```
+
+
+
+Model for biogeographic realm
+```{r}
+realm_mod_SURV <- rma.mv(yi = pld_av_mort_effectsize_d, V = ((pld_av_mort_effect_sd)^2), data = geog_surv, mods = ~biogeog_realm, random = list(~1|acc_id/obs_id))
+
+summary(realm_mod_SURV)
+```
+
+
+Model for tropical/temperate region
+```{r}
+geog_mod_SURV <- rma.mv(yi = pld_av_mort_effectsize_d, V = ((pld_av_mort_effect_sd)^2), data = geog_surv, mods = ~zone, random = list(~1|acc_id/obs_id))
+summary(geog_mod_SURV)
+```
+
+
+Model for latitude
+```{r}
+lat_mod_SURV <- rma.mv(yi = pld_av_mort_effectsize_d, V = ((pld_av_mort_effect_sd)^2), data = geog_surv, mods = ~med_lat, random = list(~1|acc_id/obs_id))
+summary(lat_mod_SURV)
+```
+
+
+
+
+### Data wrangling - figure 4
+
+
+Produce a dataframe with mean settlement time estimates for each reproductive mode and morphology combination as predicted by the model, with 95% confidence intervals
+```{r}
+colnames(repro_morpho_mod_SETTLE$X)
+
+grid <- expand.grid(
+  spawn_mode = levels(phy_settle$spawn_mode),
+  growth_form_cat = levels(phy_settle$growth_form_cat)
+)
+
+mm <- model.matrix(~ spawn_mode * growth_form_cat, data = grid)
+
+mm <- mm[, -1, drop = FALSE]
+
+# match model columns
+keep <- colnames(repro_morpho_mod_SETTLE$X)[-1]  # remove intrcpt
+mm <- mm[, keep, drop = FALSE]
+
+preds <- predict(repro_morpho_mod_SETTLE, newmods = mm)
+
+result <- cbind(grid, preds)
+result
+```
+
+
+
+Re-order and relabel settlement time data for plotting. Add in upper and lower confidence intervals for each data point, using the SE reported
+```{r}
+settlement_plotting <- phy_settle %>% 
+  mutate(morph_id = case_when(
+    growth_form_cat == "branching" ~ "1",
+    growth_form_cat == "domed" ~ "2",
+    growth_form_cat == "plating" ~ "3",
+    growth_form_cat == "erect branched" ~ "4",
+    growth_form_cat == "horizontal unbranched" ~ "5"
+    )) %>% 
+  mutate_at("morph_id", as.numeric) %>% # Assign each morphology a number for re-ordering them
+  mutate(spawn_mode = factor(spawn_mode, 
+         levels = c("broadcasting", "brooding"), 
+         labels = c("Broadcasting", "Brooding"))) %>% # Re-label reproductive mode
+  mutate(growth_form_cat = factor(growth_form_cat, 
+         levels = c("branching", "domed", "plating", "erect branched", "horizontal unbranched"), 
+         labels = c("Branching (stony)", "Domed (stony)", "Plating (stony)", "Erect branched (soft)", "Horizontal unbranched (soft)"))) %>% # Re-label morphology
+  mutate_at("species_accepted", as.factor) %>%
+  mutate(comp_lb = pld_av_comp_effectsize_d + 1.96*pld_av_comp_effect_sd) %>% 
+  mutate(comp_ub = pld_av_comp_effectsize_d - 1.96*pld_av_comp_effect_sd) # Add confidence intervals
+```
+
+
+Do the same for survival time data
+```{r}
+survival_plotting <- phy_surv %>% 
+  mutate(morph_id = case_when(
+    growth_form_cat == "branching" ~ "1",
+    growth_form_cat == "domed" ~ "2",
+    growth_form_cat == "plating" ~ "3",
+    growth_form_cat == "erect branched" ~ "4",
+    growth_form_cat == "horizontal unbranched" ~ "5"
+  )) %>% 
+  mutate_at("morph_id", as.numeric) %>% 
+  mutate(growth_form_cat = factor(growth_form_cat, 
+         levels = c("branching", "domed", "plating", "erect branched", "horizontal unbranched"), 
+         labels = c("Branching (stony)", "Domed (stony)", "Plating (stony)", "Erect branched (soft)", "Horizontal unbranched (soft)"))) %>% 
+  mutate(spawn_mode = factor(spawn_mode, 
+         levels = c("broadcasting", "brooding"), 
+         labels = c("Broadcasting", "Brooding"))) %>%
+  mutate_at("species_accepted", as.factor) %>%  
+  mutate(surv_ub = pld_av_mort_effectsize_d + 1.96*pld_av_mort_effect_sd) %>%    
+  mutate(surv_lb = pld_av_mort_effectsize_d - 1.96*pld_av_mort_effect_sd) # Add confidence intervals
+```
+
+
+
+Manually set shapes for points for each reproductive mode
+```{r}
+#Settlement time effect sizes
+repro_shape_set <- c(1, 19)
+names(repro_shape_set) <- levels(settlement_plotting$spawn_mode)
+
+#Survival time effect sizes
+repro_shape_surv <- c(1, 19)
+names(repro_shape_surv) <- levels(survival_plotting$spawn_mode)
+```
+
+
+
+### Figure 4
+
+
+Produce 4a, a forest plot showing variation in mean larval settlement time effect sizes, with vertical lines showing overall mean settlement times for each life-history group, as estimated by the meta-regression.
+```{r}
+# Create plot
+fig4a <- ggplot(settlement_plotting, aes(x = pld_av_comp_effectsize_d, y = fct_reorder(species_accepted, morph_id, .desc = TRUE), shape = spawn_mode, colour = growth_form_cat)) + # Plot species, grouped by morphology, against mean larval settlement time, with shape and colour differentiating reproductive mode and morphology
+  geom_errorbar(aes(xmin = comp_lb, xmax = comp_ub), alpha = 0.55, width = 0.5) + # Add error bars for data points
+  geom_point(alpha = 0.7, size = 3) + # Set point size and transparency
+  geom_hline(yintercept = 2.5, colour = "grey", linetype = 2, linewidth = 1.5) + 
+  geom_hline(yintercept = 14.5, colour = "grey", linetype = 2, linewidth = 1.5) + 
+  geom_hline(yintercept = 21.5, colour = "grey", linetype = 2, linewidth = 1.5) + 
+  geom_hline(yintercept = 52.5, colour = "grey", linetype = 2, linewidth = 1.5) + # Use dashed lines to separate out morphologies
+  geom_segment(aes(x = 5.264, y = 77.5, yend = 52.5), colour = "#5C4564", linewidth = 1) + # Add vertical lines for overall means for each life-history grouping, and show confidence interval
+  annotate(geom = "rect", xmin = 0.001, xmax = 10.526	,
+           ymin = 77.5, ymax = 52.5,
+           fill = "#5C4564", alpha = 0.2) +
+  geom_segment(aes(x = 13.873, y = 77.5, yend = 52.5), colour = "#5C4564", linetype = 2, linewidth = 1) +
+  annotate(geom = "rect", xmin = 10.043, xmax = 17.703,
+           ymin = 77.5, ymax = 52.5,
+           fill = "#5C4564", alpha = 0.2) +
+  geom_segment(aes(x = 8.740, y = 52.5, yend = 21.5), colour = "#41C3EE", linewidth = 1) +
+  annotate(geom = "rect", xmin = 1.838, xmax = 15.642,
+           ymin = 21.5, ymax = 52.5,
+           fill = "#41C3EE", alpha = 0.15) +
+  geom_segment(aes(x = 12.988, y = 52.5, yend = 21.5), colour = "#41C3EE", linetype = 2, linewidth = 1) +
+  annotate(geom = "rect", xmin = 8.889, xmax = 17.088,
+           ymin = 21.5, ymax = 52.5,
+           fill = "#41C3EE", alpha = 0.15) +
+  geom_segment(aes(x = 14.093, y = 14.5, yend = 21.5), colour = "#AFFC57", linetype = 2, linewidth = 1) +
+  annotate(geom = "rect", xmin = 6.865, xmax = 21.321,
+           ymin = 14.5, ymax = 21.5,
+           fill = "#AFFC57", alpha = 0.1) +
+  geom_segment(aes(x = 29.112, y = 2.5, yend = 14.5), colour = "#FB9140", linewidth = 1) +
+  annotate(geom = "rect", xmin = 17.870, xmax = 37.574,
+           ymin = 2.5, ymax = 14.5,
+           fill = "#FB9140", alpha = 0.15) +
+  geom_segment(aes(x = 27.722, y = 2.5, yend = 14.5), colour = "#FB9140", linetype = 2, linewidth = 1) +
+  annotate(geom = "rect", xmin = 22.523, xmax = 35.701,
+           ymin = 2.5, ymax = 14.5,
+           fill = "#FB9140", alpha = 0.15) +
+  geom_segment(aes(x = 9.922, y = 0.5, yend = 2.5), colour = "#973939", linewidth = 1) +
+  annotate(geom = "rect", xmin = 0, xmax = 20.537,
+           ymin = 0.5, ymax = 2.5,
+           fill = "#973939", alpha = 0.15) +
+  scale_shape_manual(values = repro_shape_set,
+                     name = "Reproductive mode") + # Set point shapes manually
+  scale_colour_viridis_d(option = "H", name = "Colony morphology") + # Use an accessible colour pallette
+  theme_bw() + # Set theme manually
+  guides(
+    shape = guide_legend(order = 1),
+    colour = guide_legend(order = 2)
+  ) +
+  theme(panel.grid = element_blank(),
+        axis.title = element_text(size = 14, face = "bold"),
+        axis.title.y = element_text(vjust = 0.5),
+        axis.title.x = element_text(vjust = -0.5),
+        axis.text.y = element_text(size = 12),
+        axis.text.x = element_text(size = 12),
+        plot.title = element_text(size = 14, colour = "black", face = "bold"),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 12, colour = "black", face = "bold"),
+        legend.position = "inside",
+        legend.position.inside = c(0.8, 0.814)) +
+  labs(x = "Mean larval settlement time / days (95% confidence interval)",
+       y = "Species")  # Label axes
+
+#View figure
+fig4a
+
+#Save figure
+ggsave("figures/fig4a.png", width = 12, height = 17)
+```
+
+
+
+Make figure for survival times (4b). No vertical lines needed for averages.
+```{r}
+# Create figure
+fig4b <- ggplot(survival_plotting, aes(x = pld_av_mort_effectsize_d, y = fct_reorder(species_accepted, morph_id, .desc = TRUE), shape = spawn_mode, colour = growth_form_cat)) +
+  geom_errorbar(aes(xmin = surv_lb, xmax = surv_ub), alpha = 0.55, width = 0.5) +
+  geom_point(alpha = 0.7, size = 3) + 
+  geom_hline(yintercept = 1.5, colour = "grey", linetype = 2, linewidth = 1.5) + 
+  geom_hline(yintercept = 8.5, colour = "grey", linetype = 2, linewidth = 1.5) + 
+  geom_hline(yintercept = 12.5, colour = "grey", linetype = 2, linewidth = 1.5) + 
+  geom_hline(yintercept = 24.5, colour = "grey", linetype = 2, linewidth = 1.5) + 
+  scale_shape_manual(values = repro_shape_surv,
+                     name = "Reproductive mode") + 
+  scale_colour_viridis_d(option = "H", name = "Colony morphology") +
+  theme_bw() +
+  guides(
+    shape = guide_legend(order = 1),
+    colour = guide_legend(order = 2)
+  ) +
+  theme(panel.grid = element_blank(),
+        axis.title = element_text(size = 14, face = "bold"),
+        axis.title.y = element_text(vjust = 0.5),
+        axis.title.x = element_text(vjust = -0.5),
+        axis.text.y = element_text(size = 12),
+        axis.text.x = element_text(size = 12),
+        plot.title = element_text(size = 14, colour = "black", face = "bold"),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 12, colour = "black", face = "bold"),
+        legend.position = "inside",
+        legend.position.inside = c(0.8, 0.64)) +
+  labs(x = "Mean larval survival time / days (95% confidence interval)",
+       y = "Species") 
+
+# View figure
+fig4b
+# Save figure
+ggsave("figures/fig4b.png", width = 12, height = 9)
+```
+
+
+
+
+
+
+
