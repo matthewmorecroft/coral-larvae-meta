@@ -10,11 +10,11 @@ This repository contains the data and code for our paper "Life-history traits ex
 
 #### Data
 
-1 Search result data with inclusion/exclusion details
+1 "search-data.csv" - Literature search result data with inclusion/exclusion details.
 
-3 Review data, with extracted methodology, species, biogeographic realm, and biophysical model parameter justification data
+2 "review-data.csv" - Systematic review data with extracted methodology, species, biogeographic realm, and biophysical model parameter justification data.
 
-3 Meta-analysis data, with extracted effect sizes and additional trait data
+3 "coral-modelling-data.csv" - Meta-analysis data, with extracted effect sizes and additional trait data
 
 Producing figures 1b and 1c also requires conservation status and taxonomic data for the Anthozoa, which can be obtained from the IUCN Red List.
 (IUCN. 2026. The IUCN Red List of Threatened Species. Version 2026-1. https://www.iucnredlist.org. Accessed on 10/03/2025)
@@ -22,9 +22,9 @@ Producing figures 1b and 1c also requires conservation status and taxonomic data
 
 #### Analysis
 
-1 R notebook for systematic review summary statistics and figures (fig 1, fig 3)
+1 "review-figures" - R notebook for systematic review summary statistics and figures (fig 1, fig 3)
 
-2 R notebook for meta-analysis models and figures (fig 4)
+2 "meta-analysis" - R notebook for meta-analysis models and figures (fig 4)
 
-3 R notebook for fig 2
+3 "figure-2" - R notebook for fig 2
 
