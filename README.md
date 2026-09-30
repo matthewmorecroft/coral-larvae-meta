@@ -8,7 +8,7 @@
 
 <a href="https://doi.org/10.5281/zenodo.23044993"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.23044993.svg" alt="DOI"></a>
 
-This repository contains the data and code for our paper "Life-history traits explain variation in the larval dispersal potential of corals" [link when available]. The code and data enables the reproduction of the analysis and figures in this paper. The data files needed for the analysis are located in the "data" folder, with figures saved in the "figures" folder. All code is written in one of three R Notebooks. See below for explanations of each file. This repository is archived on Zenodo (see doi).
+This repository contains the data and code for our paper "Life-history traits explain variation in the larval dispersal potential of corals" [link when available]. The code and data enables the reproduction of the analysis and figures in this paper. The data files needed for the analysis are located in the "data" folder, with figures saved in the "figures" folder. All code is written in one of three R Notebooks. See below for explanations of each file. This repository is archived on Zenodo (see DOI).
 
 #### Data
 
